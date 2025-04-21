@@ -1,6 +1,20 @@
 import streamlit as st
 import fitz  # PyMuPDF
 
+# Şifre Giriniz
+SECRET_PASSWORD = "your_secret_password"  # Burada şifrenizi girin
+
+# Uygulamanın başında kullanıcıdan şifre isteniyor
+password = st.text_input("Şifrenizi girin", type="password")
+
+# Şifre doğruysa içeriği gösteriyoruz, yanlışsa hata mesajı veriyoruz
+if password == SECRET_PASSWORD: 1119A
+    st.write("Şifre doğru! Uygulamaya erişiyorsunuz.")
+    # Burada asıl uygulamanızın geri kalan kısmını ekleyebilirsiniz
+else:
+    if password:
+        st.error("Yanlış şifre! Lütfen tekrar deneyin.")
+
 st.set_page_config(page_title="CV Filtreleme", layout="centered")
 
 st.title("📄 CV Filtreleme Uygulaması")
