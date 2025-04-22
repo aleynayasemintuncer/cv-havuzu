@@ -1,5 +1,8 @@
 import streamlit as st
 import fitz  # PyMuPDF
+import requests
+
+st.set_page_config(page_title="CV Filtreleme", layout="centered")
 
 # --- Şifreli Giriş ---
 if "password" not in st.session_state:
@@ -10,34 +13,36 @@ if st.session_state["password"] != "1119A":
     st.warning("Uygulamaya erişmek için şifre girmeniz gerekiyor.")
     st.stop()
 
-
-st.set_page_config(page_title="CV Filtreleme", layout="centered")
-
 st.title("📄 CV Filtreleme Uygulaması")
-st.write("PDF CV'leri yükleyin ve aşağıdaki alandan anahtar kelimelerle filtreleyin.")
+st.write("PDF CV'leri otomatik olarak yüklenecek. Aşağıdaki alandan anahtar kelimelerle filtreleyin.")
 st.write("🔍 Anahtar kelimeleri virgül ile ayırarak girin (örn: photoshop, illustrator, sosyal medya)")
 
-# Anahtar kelime giriş kutusu
-keywords = st.text_input("Anahtar Kelimeler")
+# Anahtar kelimeleri al
+keywords = st.text_input("Filtrelemek istediğiniz anahtar kelimeleri virgülle ayırarak girin").lower()
+filtered_keywords = [kw.strip() for kw in keywords.split(",") if kw.strip()]
 
-# Dosya yükleme alanı
-uploaded_files = st.file_uploader("Bir veya birden fazla PDF dosyası yükleyin", type="pdf", accept_multiple_files=True)
+# GitHub klasöründeki PDF dosyalarının bağlantıları
+pdf_urls = [
+    "https://raw.githubusercontent.com/aleynayasemintuncer/-zge-mi-Havuzu/main/pdfler/ornek1.pdf",
+    "https://raw.githubusercontent.com/aleynayasemintuncer/-zge-mi-Havuzu/main/pdfler/ornek2.pdf"
+    # buraya yeni dosyalar ekleyebilirsin
+]
 
-# PDF'ten metin çıkarma fonksiyonu
-def extract_text_from_pdf(pdf_file):
-    with fitz.open(stream=pdf_file.read(), filetype="pdf") as doc:
-        return "".join([page.get_text() for page in doc])
+st.subheader("📁 GitHub'dan Otomatik Yüklenen PDF'ler")
 
-# Dosya varsa işle
-if uploaded_files:
-    filtered_keywords = [kw.strip().lower() for kw in keywords.split(",") if kw.strip()]
-    st.markdown("### 🔍 Eşleşen CV'ler:")
+# PDF’lerden metin çıkarma
+def extract_text_from_url(url):
+    try:
+        response = requests.get(url)
+        with fitz.open(stream=response.content, filetype="pdf") as doc:
+            return "".join([page.get_text() for page in doc])
+    except Exception as e:
+        return f"PDF okunamadı: {e}"
 
-    for uploaded_file in uploaded_files:
-        text = extract_text_from_pdf(uploaded_file).lower()
-        if all(kw in text for kw in filtered_keywords):
-            st.success(f"✅ {uploaded_file.name} eşleşti!")
-            with st.expander("📄 İçeriği Göster"):
-                st.text_area(label="", value=text, height=300)
-        else:
-            st.warning(f"❌ {uploaded_file.name} eşleşmedi.")
+# PDF’leri listele ve filtrele
+for url in pdf_urls:
+    text = extract_text_from_url(url).lower()
+    if not filtered_keywords or all(kw in text for kw in filtered_keywords):
+        st.success(f"📄 {url.split('/')[-1]}")
+        with st.expander("İçeriği Gör"):
+            st.text_area(label="", value=text, height=300)
