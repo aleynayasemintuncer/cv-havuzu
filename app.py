@@ -7,38 +7,44 @@ from PIL import Image
 import pytesseract
 import re
 
-# Eğer Windows kullanıyorsan bu satırı aç (Tesseract kurulum klasörü)
 # pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
 
 st.set_page_config(page_title="CV Filtreleme", layout="centered")
 
-# 🔐 Giriş için başlangıç durumu
 if "authenticated" not in st.session_state:
     st.session_state["authenticated"] = False
 
-# 🔒 Eğer henüz giriş yapılmadıysa, sadece giriş kutusunu göster
 if not st.session_state["authenticated"]:
-    st.title("Giriş Yap")
-    password = st.text_input("🔒 Lütfen şifreyi girin", type="password")
-    if password == "1119A":
-        st.session_state["authenticated"] = True
-        st.success("Giriş başarılı ✅")
-        st.rerun()
-    elif password != "":
-        st.error("❌ Şifre yanlış!")
-    st.stop()  # 🛑 Giriş yapılmadıysa uygulamayı burada durdur
+    selected_tab = st.sidebar.radio("👋 Hoş Geldiniz", ["📘 Hakkımızda", "🔐 Giriş Yap"])
 
+    if selected_tab == "📘 Hakkımızda":
+        st.title("İşe Alım Danışmanlığına Hoş Geldiniz")
+        st.markdown("""
+        İşe alım danışmanlığı alanında profesyonel destek sağlıyoruz.  
+        Bu uygulama, gelen özgeçmişleri filtrelemenizi kolaylaştırmak için tasarlanmıştır.  
+        Lütfen sol menüden 'Giriş Yap' seçeneğini kullanarak şifre ile erişim sağlayın.
+        """)
 
+    elif selected_tab == "🔐 Giriş Yap":
+        st.title("Giriş Yap")
+        password = st.text_input("🔒 Lütfen şifreyi girin", type="password")
+        if password == "1119A":
+            st.session_state["authenticated"] = True
+            st.success("Giriş başarılı ✅")
+            st.rerun()
+        elif password != "":
+            st.error("❌ Şifre yanlış!")
+    st.stop()
+
+# Giriş başarılıysa filtreleme sayfası
 st.title("📄 CV Filtreleme Uygulaması")
 
 st.write("Google Drive'dan PDF dosyaları çekilecek.")
 st.write("🔍 Aşağıdaki filtrelere göre CV'leri listeleyebilirsiniz:")
 
-# Filtre girişleri
 meslek_filter = st.text_input("🧑‍💻 Meslek filtresi (örn: grafiker, mimar)").strip().lower()
 adres_filter = st.text_input("🏠 Adres filtresi (örn: istanbul, ankara)").strip().lower()
 
-# Google Drive dosya ID’leri
 drive_files = {
     "2025110.pdf": "1l9SlldjVg1N1SJa4um2oTsm4J_3xnzEt",
     "2025111.pdf": "1dryftkCJi9wmG8yYj3SbUGKWFCMDFl_U",
@@ -95,7 +101,6 @@ def analyze_text(text):
 
     return result
 
-# PDF'leri işle - filtreye uyanları önce göstermek için
 uygun_cvler = []
 uymayan_cvler = []
 
@@ -124,7 +129,6 @@ for name, file_id in drive_files.items():
     else:
         uymayan_cvler.append(data)
 
-# Uygunları önce, uymayanları sonra göster
 for data in uygun_cvler + uymayan_cvler:
     st.subheader(f"📄 {data['name']}")
     if data["uygun"]:
@@ -133,6 +137,5 @@ for data in uygun_cvler + uymayan_cvler:
             st.write(f"**{key}:** {value}")
     else:
         st.info("❗ Bu CV filtrelere uymuyor.")
-
     with st.expander("📖 İçeriği Oku"):
         st.text_area(label="", value=data["text"], height=300)
