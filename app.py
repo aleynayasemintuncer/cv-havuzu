@@ -1,52 +1,138 @@
 import streamlit as st
-import fitz  # PyMuPDF
 import requests
+import fitz  # PyMuPDF
 from io import BytesIO
-from urllib.parse import unquote
+from pdf2image import convert_from_bytes
+from PIL import Image
+import pytesseract
+import re
+
+# Eğer Windows kullanıyorsan bu satırı aç (Tesseract kurulum klasörü)
+# pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
 
 st.set_page_config(page_title="CV Filtreleme", layout="centered")
 
-# --- Şifreli Giriş ---
-if "password" not in st.session_state:
-    st.session_state["password"] = ""
+# 🔐 Giriş için başlangıç durumu
+if "authenticated" not in st.session_state:
+    st.session_state["authenticated"] = False
 
-if st.session_state["password"] != "1119A":
-    st.text_input("🔒 Lütfen şifreyi girin", type="password", key="password")
-    st.warning("Uygulamaya erişmek için şifre girmeniz gerekiyor.")
-    st.stop()
+# 🔒 Eğer henüz giriş yapılmadıysa, sadece giriş kutusunu göster
+if not st.session_state["authenticated"]:
+    st.title("Giriş Yap")
+    password = st.text_input("🔒 Lütfen şifreyi girin", type="password")
+    if password == "1119A":
+        st.session_state["authenticated"] = True
+        st.success("Giriş başarılı ✅")
+        st.rerun()
+    elif password != "":
+        st.error("❌ Şifre yanlış!")
+    st.stop()  # 🛑 Giriş yapılmadıysa uygulamayı burada durdur
+
 
 st.title("📄 CV Filtreleme Uygulaması")
-st.write("PDF CV'leri otomatik olarak yüklenecek. Aşağıdaki alandan anahtar kelimelerle filtreleyin.")
-st.write("🔍 Anahtar kelimeleri virgül ile ayırarak girin (örn: photoshop, illustrator, sosyal medya)")
 
-# Anahtar kelimeleri al
-keywords = st.text_input("Filtrelemek istediğiniz anahtar kelimeleri virgülle ayırarak girin").lower()
-filtered_keywords = [kw.strip() for kw in keywords.split(",") if kw.strip()]
+st.write("Google Drive'dan PDF dosyaları çekilecek.")
+st.write("🔍 Aşağıdaki filtrelere göre CV'leri listeleyebilirsiniz:")
 
-# GitHub klasöründeki PDF dosyalarının bağlantıları
-pdf_urls = [
-    "https://github.com/aleynayasemintuncer/-zge-mi-havuzu/raw/main/pdfler/ZeynepTopal%20CV..pdf"
-]
+# Filtre girişleri
+meslek_filter = st.text_input("🧑‍💻 Meslek filtresi (örn: grafiker, mimar)").strip().lower()
+adres_filter = st.text_input("🏠 Adres filtresi (örn: istanbul, ankara)").strip().lower()
 
-st.subheader("📁 GitHub'dan Otomatik Yüklenen PDF'ler")
+# Google Drive dosya ID’leri
+drive_files = {
+    "2025110.pdf": "1l9SlldjVg1N1SJa4um2oTsm4J_3xnzEt",
+    "2025111.pdf": "1dryftkCJi9wmG8yYj3SbUGKWFCMDFl_U",
+    "2025112.pdf": "10mYPrRLDiKuHJzqdo_dLg_6Q2-Zz6_0U"
+}
 
-# PDF’lerden metin çıkarma
-def extract_text_from_url(url):
+def download_pdf_from_drive(file_id):
     try:
+        url = f"https://drive.google.com/uc?id={file_id}"
         response = requests.get(url)
         response.raise_for_status()
-        pdf_stream = BytesIO(response.content)
-        with fitz.open(stream=pdf_stream, filetype="pdf") as doc:
-            return "".join([page.get_text() for page in doc])
+        return BytesIO(response.content)
+    except Exception as e:
+        st.error(f"PDF indirilemedi: {e}")
+        return None
+
+def extract_text(pdf_bytes):
+    try:
+        with fitz.open(stream=pdf_bytes, filetype="pdf") as doc:
+            text = "".join([page.get_text() for page in doc])
+        if not text.strip():
+            pdf_bytes.seek(0)
+            images = convert_from_bytes(pdf_bytes.read())
+            text = ""
+            for img in images:
+                text += pytesseract.image_to_string(img)
+        return text
     except Exception as e:
         return f"PDF okunamadı: {e}"
 
-# PDF’leri listele ve filtrele
-for i, url in enumerate(pdf_urls):
-    filename = unquote(url.split("/")[-1])  # URL'den gerçek dosya adını çöz
-    text = extract_text_from_url(url).lower()
+def analyze_text(text):
+    result = {}
 
-    if not filtered_keywords or all(kw in text for kw in filtered_keywords):
-        st.success(f"📄 {filename}")
-        with st.expander("İçeriği Gör"):
-            st.text_area(label="", value=text, height=300, key=f"text_{i}")
+    name_match = re.search(r"(?i)(ad[ıi]\s*:?\s*)([a-zçğıöşü\s]+)", text)
+    result["Adı Soyadı"] = name_match.group(2).strip().title() if name_match else "-"
+
+    phone_match = re.search(r"(\+90|90)?\s*\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{2}[-.\s]?\d{2}", text)
+    result["Telefon"] = phone_match.group() if phone_match else "-"
+
+    address_match = re.search(r"(?i)(adres|ikamet|adres bilgisi)[^\n]*\n(.+)", text)
+    result["Adres"] = address_match.group(2).strip() if address_match else "-"
+
+    education_match = re.search(r"(?i)(lisans|önlisans|yüksek lisans|lise)", text)
+    result["Eğitim Durumu"] = education_match.group(0).strip().title() if education_match else "-"
+
+    graduation_match = re.search(r"(20[0-4][0-9]|19[8-9][0-9])", text)
+    result["Mezuniyet Yılı"] = graduation_match.group(0) if graduation_match else "-"
+
+    bolum_match = re.search(r"(?i)(bölüm[:\s]*)\s*([a-zçğıöşü\s]+)", text)
+    result["Bölüm"] = bolum_match.group(2).title().strip() if bolum_match else "-"
+
+    derece_match = re.search(r"(?i)(derece|not ortalaması|gano)[:\s]*([0-9][.,]?[0-9]*)", text)
+    result["Derece"] = derece_match.group(2).replace(",", ".") if derece_match else "-"
+
+    return result
+
+# PDF'leri işle - filtreye uyanları önce göstermek için
+uygun_cvler = []
+uymayan_cvler = []
+
+for name, file_id in drive_files.items():
+    pdf_bytes = download_pdf_from_drive(file_id)
+    if not pdf_bytes:
+        continue
+
+    text = extract_text(pdf_bytes)
+    if not text or text.strip() == "":
+        continue
+
+    text_lower = text.lower()
+    filtre_uygun = (not meslek_filter or meslek_filter in text_lower) and \
+                   (not adres_filter or adres_filter in text_lower)
+
+    data = {
+        "name": name,
+        "text": text,
+        "analyzed": analyze_text(text_lower),
+        "uygun": filtre_uygun
+    }
+
+    if filtre_uygun:
+        uygun_cvler.append(data)
+    else:
+        uymayan_cvler.append(data)
+
+# Uygunları önce, uymayanları sonra göster
+for data in uygun_cvler + uymayan_cvler:
+    st.subheader(f"📄 {data['name']}")
+    if data["uygun"]:
+        st.success("📋 Aşağıda çıkarılan bilgiler yer alıyor:")
+        for key, value in data["analyzed"].items():
+            st.write(f"**{key}:** {value}")
+    else:
+        st.info("❗ Bu CV filtrelere uymuyor.")
+
+    with st.expander("📖 İçeriği Oku"):
+        st.text_area(label="", value=data["text"], height=300)
