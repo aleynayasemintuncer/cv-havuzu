@@ -1,2 +1,10 @@
 streamlit
 pymupdf
+google-api-python-client
+google-auth
+google-auth-httplib2
+google-auth-oauthlib
+pdf2image
+pytesseract
+Pillow
+requests
