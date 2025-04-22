@@ -1,6 +1,8 @@
 import streamlit as st
 import fitz  # PyMuPDF
 import requests
+from io import BytesIO
+from urllib.parse import unquote
 
 st.set_page_config(page_title="CV Filtreleme", layout="centered")
 
@@ -23,9 +25,7 @@ filtered_keywords = [kw.strip() for kw in keywords.split(",") if kw.strip()]
 
 # GitHub klasöründeki PDF dosyalarının bağlantıları
 pdf_urls = [
-    "https://raw.githubusercontent.com/aleynayasemintuncer/-zge-mi-Havuzu/main/pdfler/ornek1.pdf",
-    "https://raw.githubusercontent.com/aleynayasemintuncer/-zge-mi-Havuzu/main/pdfler/ornek2.pdf"
-    # buraya yeni dosyalar ekleyebilirsin
+    "https://github.com/aleynayasemintuncer/-zge-mi-havuzu/raw/main/pdfler/ZeynepTopal%20CV..pdf"
 ]
 
 st.subheader("📁 GitHub'dan Otomatik Yüklenen PDF'ler")
@@ -34,15 +34,19 @@ st.subheader("📁 GitHub'dan Otomatik Yüklenen PDF'ler")
 def extract_text_from_url(url):
     try:
         response = requests.get(url)
-        with fitz.open(stream=response.content, filetype="pdf") as doc:
+        response.raise_for_status()
+        pdf_stream = BytesIO(response.content)
+        with fitz.open(stream=pdf_stream, filetype="pdf") as doc:
             return "".join([page.get_text() for page in doc])
     except Exception as e:
         return f"PDF okunamadı: {e}"
 
 # PDF’leri listele ve filtrele
-for url in pdf_urls:
+for i, url in enumerate(pdf_urls):
+    filename = unquote(url.split("/")[-1])  # URL'den gerçek dosya adını çöz
     text = extract_text_from_url(url).lower()
+
     if not filtered_keywords or all(kw in text for kw in filtered_keywords):
-        st.success(f"📄 {url.split('/')[-1]}")
+        st.success(f"📄 {filename}")
         with st.expander("İçeriği Gör"):
-            st.text_area(label="", value=text, height=300)
+            st.text_area(label="", value=text, height=300, key=f"text_{i}")
