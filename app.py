@@ -8,14 +8,17 @@ import re
 from pdf2image import convert_from_bytes
 from datetime import datetime
 
+# 1. İlk olarak page config veriyoruz
+st.set_page_config(page_title="HRDanışmanım.com", layout="wide")
+
+with open('style.css') as f:
+    st.markdown(f'<style>{f.read()}</style>', unsafe_allow_html=True)
+
 # Kullanıcı adı ve şifre verisi
 kullanici_verisi = {
     "aleynayasemintuncer@gmail.com": "1119A",
     "musteri2@gmail.com": "abcd1234"
 }
-
-# Sayfa ayarı
-st.set_page_config(page_title="İK ve Aday Portalları", layout="wide")
 
 # Session State başlat
 if "authenticated" not in st.session_state:
@@ -26,6 +29,8 @@ if "adaylar" not in st.session_state:
     st.session_state["adaylar"] = []
 if "talepler" not in st.session_state:
     st.session_state["talepler"] = []
+if "formlar" not in st.session_state:
+    st.session_state["formlar"] = []
 
 # Menü
 selected_page = st.sidebar.radio("📂 Menü", [
@@ -35,6 +40,7 @@ selected_page = st.sidebar.radio("📂 Menü", [
     "🏢 Şirket Portalı",
     "🚀 Whitepace - İş Arayanlar"
 ])
+
 
 # Google Drive'daki CV Dosyaları
 drive_files = {
@@ -50,6 +56,47 @@ if selected_page == "🏠 Anasayfa":
     İnsan Kaynakları ve Aday Portallarımıza hoş geldiniz!  
     Sol menüden istediğiniz bölüme geçiş yapabilirsiniz.
     """)
+
+# İletişim Formu Başlığı
+    st.subheader("İletişim Formu")
+    
+    # Formu başlatıyoruz
+    with st.form(key='contact_form'):
+        # Adı Soyadı
+        name = st.text_input("Adı Soyadı")
+        
+        # Telefon Numarası
+        phone = st.text_input("Telefon Numarası")
+        
+        # Mail Adresi
+        email = st.text_input("E-posta Adresi")
+        
+        # Konu
+        subject = st.text_area("Konu")
+        
+        # Formu gönder butonu
+        submit_button = st.form_submit_button(label="Gönder")
+
+    # Form gönderildiyse
+    if submit_button:
+        # Verileri st.session_state'de tutma
+        if "formlar" not in st.session_state:
+            st.session_state["formlar"] = []
+
+        # Form verisini kaydet
+        st.session_state["formlar"].append({
+            "Adı Soyadı": name,
+            "Telefon Numarası": phone,
+            "E-posta Adresi": email,
+            "Konu": subject
+        })
+        
+        # Kullanıcıya teşekkür mesajı
+        st.write("Form başarıyla gönderildi. Teşekkürler!")
+
+# İK Portalı ve diğer sayfalarda sekme seçim kodu
+if selected_page == "👩‍💼 İK Portalı":
+    sekme = st.radio("Sekme Seçiniz", ["Adaylar", "Müşteriler", "Formlar"])
 
 elif selected_page == "📖 Hakkımızda":
     st.title("📖 Hakkımızda")
@@ -81,13 +128,16 @@ if selected_page == "👩‍💼 İK Portalı":
 
     st.title("👩‍💼 İK Portalı - CV Filtreleme ve Başvuran Adaylar")
 
-    sekme = st.radio("Sekme Seçiniz", ["Adaylar", "Müşteriler"])
+# İK Portalı sekme seçim kodu burada olmalı:
+if selected_page == "👩‍💼 İK Portalı":
+    sekme = st.radio("Sekme Seçiniz", ["Adaylar", "Müşteriler", "Formlar"])
 
-    if sekme == "Adaylar":
+if sekme == "Adaylar":
+
         st.title("🧑‍🎓 İş Arayanlar (Adaylar)")
 
         st.subheader("Başvuran Adaylar")
-        if st.session_state["adaylar"]:
+        if st.session_state["Adaylar"]:
             for idx, aday in enumerate(st.session_state["adaylar"], 1):
                 st.write(f"**{idx}. {aday['Adı Soyadı']}**")
                 st.write(f"Telefon: {aday['Telefon']}")
@@ -110,12 +160,25 @@ if selected_page == "👩‍💼 İK Portalı":
 
         st.info("Bu alanlar ilerde PDF içerisinden veri çıkararak filtreleme yapacak şekilde geliştirilebilir.")
 
-    elif sekme == "Müşteriler":
+if sekme == "Müşteriler":
         st.title("📑 Müşteri Dosyaları")
         for filename, fileid in drive_files.items():
             url = f"https://drive.google.com/uc?id={fileid}"
             st.markdown(f"[{filename}]({url})", unsafe_allow_html=True)
 
+elif sekme == "Formlar":
+    st.title("📝 İletişim Formları")
+    st.subheader("Gönderilen Formlar")
+    
+    if st.session_state["formlar"]:
+        for form in st.session_state["formlar"]:
+            st.write(f"**Adı Soyadı:** {form['Adı Soyadı']}")
+            st.write(f"**Telefon Numarası:** {form['Telefon Numarası']}")
+            st.write(f"**E-posta Adresi:** {form['E-posta Adresi']}")
+            st.write(f"**Konu:** {form['Konu']}")
+            st.write("---")  # Her formu ayıran bir çizgi
+    else:
+        st.write("Henüz bir form gönderilmedi.")
 # Şirket Portalı
 if selected_page == "🏢 Şirket Portalı":
     # Session State başlatma
